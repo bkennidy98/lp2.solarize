@@ -493,11 +493,54 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     </footer>
     <link rel="stylesheet" type="text/css" href="css/index-early.min.css">
     <script>
+      window.SolarizeSheetConfig = {
+        endpoint: ''
+      };
+    </script>
+    <script>
       document.addEventListener('DOMContentLoaded', function () {
         var form = document.querySelector('.form-simulator');
         if (!form) return;
 
         window.dataLayer = window.dataLayer || [];
+        var sheetEndpoint = window.SolarizeSheetConfig && window.SolarizeSheetConfig.endpoint;
+        var lastSubmittedData = null;
+        var sheetSynced = false;
+
+        function normalizePhone(value) {
+          return (value || '').replace(/([^\d])+/gim, '');
+        }
+
+        function buildFormPayload() {
+          var conheceChecked = form.querySelector('[name="conhece"]:checked');
+          var consumoChecked = form.querySelector('[name="consumo"]:checked');
+
+          return {
+            submitted_at: new Date().toISOString(),
+            page_url: window.location.href,
+            nome: form.querySelector('[name="nome"]').value || '',
+            celular: normalizePhone(form.querySelector('[name="celular"]').value),
+            email: form.querySelector('[name="email"]').value || '',
+            segmento: form.querySelector('[name="segmento"]').value || '',
+            conhece: conheceChecked ? conheceChecked.value : '',
+            consumo: consumoChecked ? consumoChecked.value : ''
+          };
+        }
+
+        function sendToGoogleSheets(payload) {
+          if (!sheetEndpoint || !payload || sheetSynced) return;
+
+          fetch(sheetEndpoint, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          sheetSynced = true;
+        }
 
         function safeValue(field) {
           var name = field.name || '';
@@ -539,6 +582,9 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         });
 
         form.addEventListener('submit', function () {
+          lastSubmittedData = buildFormPayload();
+          sheetSynced = false;
+
           window.dataLayer.push({
             event: 'solarize_form_submit_attempt',
             form_name: 'form_solarize'
@@ -553,6 +599,8 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
                 event: 'solarize_form_success',
                 form_name: 'form_solarize'
               });
+
+              sendToGoogleSheets(lastSubmittedData);
             }
           });
 
